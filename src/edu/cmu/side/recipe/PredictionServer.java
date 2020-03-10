@@ -1108,15 +1108,13 @@ public class PredictionServer implements Container {
 			// json string must either be a url
 			// or sentence has >= three words
 			logger.info("jsonString: " + jsonString);	
-			if (jsonString != null && (jsonString.equalsIgnoreCase("    i need to understand  --")
-					|| jsonString.equalsIgnoreCase("    my theory  - test-")
-					|| jsonString.equalsIgnoreCase("    my theory  --")
-					|| jsonString.equalsIgnoreCase("    putting our knowledge together  - i know that the anthills-")
-					|| jsonString.equalsIgnoreCase("    this theory cannot explain  - why animals-")
+			if (jsonString != null && (jsonString.equalsIgnoreCase("i need to understand")
+					|| jsonString.equalsIgnoreCase("my theory")
+					|| jsonString.equalsIgnoreCase("this theory cannot explain why animals")
 					|| jsonString.equalsIgnoreCase("I agree with you too") || jsonString.equalsIgnoreCase("i dont know")
 					|| jsonString.equalsIgnoreCase("so dark") || jsonString.equalsIgnoreCase("testing this")
 					|| (jsonString.contains(" ") && jsonString.split(" ").length == 2) || !jsonString.contains(" ")) 
-					&& !jsonString.contains("http")) {
+					&& (!jsonString.contains("http") || !jsonString.contains("www"))) {
 				// Insufficient data. Please write more.
 				logger.info("L-IS jsonString: " + jsonString);	
 				rJson = new ResponseJson(requestID, "L-IS", "", jsonStr, "", "", "", "");
@@ -1239,26 +1237,16 @@ public class PredictionServer implements Container {
 	}
 
 	protected String preprocessRawString(String jsonStr) throws IOException {
+
 		String rtn = "";
 		// PorterStemmer stemmer = new PorterStemmer();
 
 		// .toLowerCase()
 		// remove punctuations except "-" and numbers
-		ArrayList<String> allWords = Stream.of(jsonStr.replaceAll("[^a-zA-Z- ]", "").split(" "))
+		ArrayList<String> allWords = Stream.of(jsonStr.replaceAll("[^a-zA-Z1-9- ]", " ").split(" "))
 				.collect(Collectors.toCollection(ArrayList<String>::new));
 
-		// List<String> stopwords = Files.readAllLines(Paths.get(destpath +
-		// File.separator + "nlp_en_stop_words.txt"));
-		// allWords.removeAll(stopwords);
-
-		// stemming
-		// int i = 0;
-		// for(String s:allWords) {
-		// allWords.set(i, stemmer.stem(s));
-		// i++;
-		// }
-
-		rtn = allWords.stream().collect(Collectors.joining(" ")).toLowerCase();
+		rtn = allWords.stream().collect(Collectors.joining(" ")).toLowerCase().trim().replace("-", "");
 
 		return rtn;
 	}
