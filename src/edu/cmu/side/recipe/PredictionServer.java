@@ -141,9 +141,9 @@ public class PredictionServer implements Container {
 			loadTrainedModel();
 
 		connection.connect(address);
-		logger.setLevel(Level.WARNING);
+		// logger.setLevel(Level.WARNING);
 		
-		//logger.setLevel(Level.INFO);
+		// logger.setLevel(Level.INFO);
 		logger.fine("Started server on port " + port + ".");
 
 		fileTxt = new FileHandler("Logging.txt", true);
