@@ -143,7 +143,7 @@ public class PredictionServer implements Container {
 		connection.connect(address);
 		// logger.setLevel(Level.WARNING);
 		
-		// logger.setLevel(Level.INFO);
+		logger.setLevel(Level.INFO);
 		logger.fine("Started server on port " + port + ".");
 
 		fileTxt = new FileHandler("Logging.txt", true);
@@ -1241,8 +1241,8 @@ public class PredictionServer implements Container {
 		String rtn = "";
 		// PorterStemmer stemmer = new PorterStemmer();
 
-		// .toLowerCase()
-		// remove punctuations except "-" and numbers
+		// .toLowerCase()  
+		// remove punctuations except "-" and numbers, SPLIT THEN JOIN 
 		ArrayList<String> allWords = Stream.of(jsonStr.replaceAll("[^a-zA-Z1-9- ]", " ").split(" "))
 				.collect(Collectors.toCollection(ArrayList<String>::new));
 
