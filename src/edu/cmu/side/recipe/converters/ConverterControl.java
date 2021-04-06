@@ -90,22 +90,22 @@ public class ConverterControl
 		{
 			try
 			{
-
+				// TODO: handle old and new case
 				Recipe recipe;
-//				if (format == RecipeFileFormat.XML)
-//				{
-//					recipe = ConverterControl.readFromXML(recipeFile);
-//				}
+				if (format == RecipeFileFormat.XML)
+				{
+					recipe = ConverterControl.readFromXML(recipeFile);
+				}
 //				else if (format == RecipeFileFormat.ZIPPED_XML)
 //				{
 //					recipe = ConverterControl.readFromZippedXML(recipeFile);
 //				}
-//				else
-//				{
+				else
+				{
 					ObjectInputStream ois = new ObjectInputStream(new FileInputStream(recipeFile));
 					recipe = (Recipe) ois.readObject();
 					ois.close();
-//				}
+				}
 
 				return recipe;
 

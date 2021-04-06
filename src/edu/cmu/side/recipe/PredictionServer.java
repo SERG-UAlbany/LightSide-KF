@@ -14,6 +14,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
+import java.nio.file.Paths;
 import java.net.SocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -137,13 +138,14 @@ public class PredictionServer implements Container {
 		Connection connection = new SocketConnection(server);
 		SocketAddress address = new InetSocketAddress(port);
 
-		if (!isTraining())
+		if (!isTraining()) {
 			loadTrainedModel();
-
+			loadEssayModels();
+		}
 		connection.connect(address);
 		// logger.setLevel(Level.WARNING);
 		
-		logger.setLevel(Level.INFO);
+		logger.setLevel(Level.FINE);
 		logger.fine("Started server on port " + port + ".");
 
 		fileTxt = new FileHandler("Logging.txt", true);
@@ -176,7 +178,7 @@ public class PredictionServer implements Container {
 
 	// this function takes care of loading all the training models to the WorkBench
 	private static void loadTrainedModel() throws FileNotFoundException, IOException {
-
+  
 		String[] fileArray = { "Train_KF2", "Train_question", "Train_all_types", "Train_resource", "Train_KF_X",
 				"Train_KF_T" };
 
@@ -193,6 +195,25 @@ public class PredictionServer implements Container {
 			Workbench.update(RecipeManager.Stage.TRAINED_MODEL);
 			Workbench.getRecipeManager().addRecipe(trainedModel);
 
+		}
+	}
+
+	private static void loadEssayModels() throws FileNotFoundException, IOException {
+		// "Effort is causing trouble , disable for now
+		String[] modelFileName = {"hw1_Communication", "hw1_Content", "hw2_Communication", "hw2_Content",
+				"Organization", "Quality", "Research"};
+
+		// String[] modelFileName = {"Quality"};
+		final String modelDirectory = Workbench.trainDataFolder.getAbsolutePath();
+
+		for (String name : modelFileName) {
+			Recipe trainedModel = Chef.loadRecipe(Paths.get(modelDirectory,"ICSI300Z", name + ".xml").toString());
+			trainedModel.setRecipeName(name);
+
+			Workbench.update(RecipeManager.Stage.TRAINED_MODEL);
+			Workbench.getRecipeManager().addRecipe(trainedModel);
+
+			logger.info(">>Recipe [" + trainedModel.getRecipeName() + "] is loaded.\tstage: " + trainedModel.getStage().name());
 		}
 	}
 
@@ -252,6 +273,11 @@ public class PredictionServer implements Container {
 				} else {
 					answer = handleGetPredict(request, response);
 				}
+			}
+
+			else if (target.startsWith("/essayfeedback") && request.getMethod().equalsIgnoreCase("POST")) {
+				response.setValue("Content-Type", "application/json;charset=utf-8");
+				answer = handleEssayFeedback(request);
 			}
 
 			else if (target.equalsIgnoreCase("/uploadtest")) {
@@ -781,6 +807,22 @@ public class PredictionServer implements Container {
 		return jsonStr;
 	}
 
+	private String handleEssayFeedback(Request request) {
+		
+		String jsonString = "Something went wrong";
+		ObjectMapper objectMapper = new ObjectMapper();
+		try {
+			Map<String,String> result = predictEssayScores(request);
+			return new JSONObject(result).toString();
+		} catch (Exception e) {
+			logger.fine(e.getMessage());
+			e.printStackTrace();
+		}
+
+		return jsonString;
+		
+	}
+
 	private Recipe buildTrainingFiles(String annot, String predictedLabel, String train_file, String algo) {
 
 		logger.fine("annot: " + annot);
@@ -942,6 +984,34 @@ public class PredictionServer implements Container {
 		return trainedModel;
 	}
 
+	private String decideCorrespondingTrainedModel(String annot) {
+		String modelToLoad;
+		switch (annot.toLowerCase()) {
+			case "l-i": // idea statements
+				modelToLoad = "Train_KF2";
+				break;
+			case "l-q": // questions
+				modelToLoad = "Train_question";
+				break;
+			case "all_type": // all type
+				modelToLoad = "Train_all_types";
+				break;
+			case "l-r": // resources
+				modelToLoad = "Train_resource";
+				break;
+			case "l-x": // explanations
+				modelToLoad = "Train_KF_X";
+				break;
+			case "l-t": // facts
+				modelToLoad = "Train_KF_T";
+				break;
+			default:
+				modelToLoad = "Complexity_level";
+		}
+		logger.info(modelToLoad);
+		return modelToLoad;
+	}
+
 	private ResponseJson classifyPrediction(Request request, Response response, String annot)
 			throws IOException, FileNotFoundException {
 		String algo = "svm";
@@ -1071,7 +1141,8 @@ public class PredictionServer implements Container {
 				}
 				logger.info("BLOACK 2 isTrainingMode: " + isTraining());
 			}
-
+			
+			// decide training model
 			if (isTraining()) {
 				logger.info("annot: " + annot + " predictedLabel: " + predictedLabel + " train_file: " + train_file + " algo: " + algo);
 				logger.info("On Training");
@@ -1084,7 +1155,7 @@ public class PredictionServer implements Container {
 				
 				if(isTrainingUpdated()) {
 					logger.info("Training updated is loaded...");
-					loadTrainedModel();
+					loadTrainedModel(); // why load model here?
 
 					setTrainingUpdated(false);
 					logger.info("Training updated is set to false...");
@@ -1093,6 +1164,7 @@ public class PredictionServer implements Container {
 				Collection<Recipe> recipelist = Workbench.getRecipeManager()
 						.getRecipeCollectionByType(RecipeManager.Stage.PREDICTION_ONLY);
 
+				// get the model
 				for (Recipe r : recipelist) {
 					if (r.getRecipeName().equalsIgnoreCase(train_file)) {
 						trainedModel = r;
@@ -1107,14 +1179,15 @@ public class PredictionServer implements Container {
 
 			// json string must either be a url
 			// or sentence has >= three words
-			logger.info("jsonString: " + jsonString);	
-			if (jsonString != null && (jsonString.equalsIgnoreCase("i need to understand")
-					|| jsonString.equalsIgnoreCase("my theory")
-					|| jsonString.equalsIgnoreCase("this theory cannot explain why animals")
-					|| jsonString.equalsIgnoreCase("I agree with you too") || jsonString.equalsIgnoreCase("i dont know")
-					|| jsonString.equalsIgnoreCase("so dark") || jsonString.equalsIgnoreCase("testing this")
-					|| (jsonString.contains(" ") && jsonString.split(" ").length == 2) || !jsonString.contains(" ")) 
-					&& (!jsonString.contains("http") || !jsonString.contains("www"))) {
+			logger.info("jsonString: " + jsonString);
+			boolean isJustScaffold = jsonString.equalsIgnoreCase("i need to understand") || jsonString.equalsIgnoreCase("my theory");
+			boolean isShortText = jsonString.equalsIgnoreCase("this theory cannot explain why animals") || jsonString.equalsIgnoreCase("I agree with you too") 
+				|| jsonString.equalsIgnoreCase("i dont know") || jsonString.equalsIgnoreCase("so dark") || jsonString.equalsIgnoreCase("testing this") 
+				|| (jsonString.contains(" ") && jsonString.split(" ").length == 2) || !jsonString.contains(" ");
+			
+			boolean doNotHaveUrl = !jsonString.contains("http") || !jsonString.contains("www");
+
+			if (jsonString != null && (isJustScaffold || isShortText) && doNotHaveUrl) {
 				// Insufficient data. Please write more.
 				logger.info("L-IS jsonString: " + jsonString);	
 				rJson = new ResponseJson(requestID, "L-IS", "", jsonStr, "", "", "", "");
@@ -1203,6 +1276,53 @@ public class PredictionServer implements Container {
 		}
 
 		return rJson;
+	}
+
+	private Map<String,String> predictEssayScores(Request request) throws IOException, FileNotFoundException {
+		// ResponseJson rJson = new ResponseJson();
+		String currentTimeStamp = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss").format(new Date());
+		String requestContent = request.getContent();
+		JSONObject requestJson = new JSONObject(requestContent);
+
+		String hwNumber = requestJson.get("hw").toString();
+		logger.info(">>> assignment number: "+ hwNumber);
+		// logger.info(">>> requestContent: "+ requestContent);
+		
+		// create a spread sheet
+		List<String> essayBody = new ArrayList<String>();
+		essayBody.add(requestJson.get("jsonString").toString());
+		
+		Map<String, List<String>> columns = new HashMap<String, List<String>>();
+		columns.put("essay body", essayBody);
+		DocumentList newCorpus = new DocumentList(essayBody, columns);
+		Map<String, String> results = new HashMap<String, String>();
+
+		// loop through models to predict
+		Recipe trainedModel=null;
+		Collection<Recipe> recipelist = Workbench.getRecipeManager().getRecipeCollectionByType(RecipeManager.Stage.TRAINED_MODEL);
+		for (Recipe recipe : recipelist) {
+			final String recipeName = recipe.getRecipeName();
+			boolean shouldSkip = (recipeName.contains("Communication") || recipeName.contains("Content")) && (!recipeName.contains(hwNumber));
+			
+			if (shouldSkip) continue;
+			
+			logger.info(">>Recipe: " + recipe.getRecipeName());
+			// if (r.getRecipeName().equalsIgnoreCase("Quality")) {
+			// 	trainedModel = r;
+			// }
+			final String newColumnName = recipe.getRecipeName() + "_predict";
+			Predictor predictor = new Predictor(recipe, newColumnName);
+			DocumentList predictedResults = predictor.predict(newCorpus, newColumnName, true, false);
+			Map<String,List<String>> allAnnotations = predictedResults.allAnnotations();
+			String predictedLabel = allAnnotations.get(newColumnName).get(0);
+			
+			results.put(newColumnName,predictedLabel);			
+		}
+		// logger.info(">>> jsonString: " + requestJson.get("jsonString").toString());
+		
+		
+		// logger.info(">>> predicted label is: " + predicted.get(0));
+		return results;
 	}
 
 	protected String getFeedbackText(String predicted) {
