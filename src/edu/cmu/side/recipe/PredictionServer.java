@@ -201,7 +201,7 @@ public class PredictionServer implements Container {
 	private static void loadEssayModels() throws FileNotFoundException, IOException {
 		// "Effort is causing trouble , disable for now
 		String[] modelFileName = {"hw1_Communication", "hw1_Content", "hw2_Communication", "hw2_Content",
-				"Organization", "Quality", "Research"};
+				"Organization", "Quality", "Research", "Effort"};
 
 		// String[] modelFileName = {"Quality"};
 		final String modelDirectory = Workbench.trainDataFolder.getAbsolutePath();
@@ -1291,9 +1291,15 @@ public class PredictionServer implements Container {
 		// create a spread sheet
 		List<String> essayBody = new ArrayList<String>();
 		essayBody.add(requestJson.get("jsonString").toString());
-		
+		List<String> wordCounts = new ArrayList<String>();
+		for (String essay: essayBody) {
+			final int wordCount = essay.split(" ").length;
+			wordCounts.add(String.valueOf(wordCount));
+		}
+				
 		Map<String, List<String>> columns = new HashMap<String, List<String>>();
 		columns.put("essay body", essayBody);
+		columns.put("word count", wordCounts);
 		DocumentList newCorpus = new DocumentList(essayBody, columns);
 		Map<String, String> results = new HashMap<String, String>();
 
@@ -1303,13 +1309,10 @@ public class PredictionServer implements Container {
 		for (Recipe recipe : recipelist) {
 			final String recipeName = recipe.getRecipeName();
 			boolean shouldSkip = (recipeName.contains("Communication") || recipeName.contains("Content")) && (!recipeName.contains(hwNumber));
-			
-			if (shouldSkip) continue;
+			if (shouldSkip) continue;	
 			
 			logger.info(">>Recipe: " + recipe.getRecipeName());
-			// if (r.getRecipeName().equalsIgnoreCase("Quality")) {
-			// 	trainedModel = r;
-			// }
+		
 			final String newColumnName = recipe.getRecipeName() + "_predict";
 			Predictor predictor = new Predictor(recipe, newColumnName);
 			DocumentList predictedResults = predictor.predict(newCorpus, newColumnName, true, false);
