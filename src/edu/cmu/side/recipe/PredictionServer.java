@@ -201,7 +201,7 @@ public class PredictionServer implements Container {
 	private static void loadEssayModels() throws FileNotFoundException, IOException {
 		// "Effort is causing trouble , disable for now
 		String[] modelFileName = {"hw1_Communication", "hw1_Content", "hw2_Communication", "hw2_Content",
-				"Organization", "Quality", "Research", "Effort"};
+				"Organization", "Quality", "Research", "Effort", "hw4_Communication", "hw4_Content"};
 
 		// String[] modelFileName = {"Quality"};
 		final String modelDirectory = Workbench.trainDataFolder.getAbsolutePath();
@@ -1284,8 +1284,12 @@ public class PredictionServer implements Container {
 		String requestContent = request.getContent();
 		JSONObject requestJson = new JSONObject(requestContent);
 
-		String hwNumber = requestJson.get("hw").toString();
-		logger.info(">>> assignment number: "+ hwNumber);
+		final String hwNumber = requestJson.get("hw").toString();
+		final String userName = requestJson.get("userName").toString();
+		final String userID = requestJson.get("userID").toString();
+		String forLogger = "";
+		
+		// logger.info(">>> assignment number: "+ hwNumber);
 		// logger.info(">>> requestContent: "+ requestContent);
 		
 		// create a spread sheet
@@ -1301,6 +1305,10 @@ public class PredictionServer implements Container {
 		columns.put("essay body", essayBody);
 		columns.put("word count", wordCounts);
 		DocumentList newCorpus = new DocumentList(essayBody, columns);
+		Set<String> feedbackFiles = new HashSet<String>();
+		feedbackFiles.add(Paths.get(Workbench.trainDataFolder.getAbsolutePath(),"ICSI300Z","feedbackMap.csv").toString());
+		DocumentList feedbackMap = new DocumentList(feedbackFiles);
+		
 		Map<String, String> results = new HashMap<String, String>();
 
 		// loop through models to predict
@@ -1311,20 +1319,38 @@ public class PredictionServer implements Container {
 			boolean shouldSkip = (recipeName.contains("Communication") || recipeName.contains("Content")) && (!recipeName.contains(hwNumber));
 			if (shouldSkip) continue;	
 			
-			logger.info(">>Recipe: " + recipe.getRecipeName());
+			// logger.info(">>Recipe: " + recipe.getRecipeName());
 		
-			final String newColumnName = recipe.getRecipeName() + "_predict";
+			final String newColumnName = recipe.getRecipeName().replace(hwNumber+"_", "");
 			Predictor predictor = new Predictor(recipe, newColumnName);
 			DocumentList predictedResults = predictor.predict(newCorpus, newColumnName, true, false);
 			Map<String,List<String>> allAnnotations = predictedResults.allAnnotations();
-			String predictedLabel = allAnnotations.get(newColumnName).get(0);
+			final String predictedLabel = allAnnotations.get(newColumnName).get(0);
+			final int feedbackTextIndex = Integer.parseInt(predictedLabel)-1;
+			String feedbackText;
 			
-			results.put(newColumnName,predictedLabel);			
+			if (recipeName.contains("Content")) {
+				feedbackText = feedbackMap.getAnnotationArray("content").get(feedbackTextIndex);
+			} else if (recipeName.contains("Communication")) {
+				feedbackText = feedbackMap.getAnnotationArray("communication").get(feedbackTextIndex);
+			} else if (recipeName.contains("Research")) {
+				feedbackText = feedbackMap.getAnnotationArray("research").get(feedbackTextIndex);
+			} else if (recipeName.contains("Effort")) {
+				feedbackText = feedbackMap.getAnnotationArray("effort").get(feedbackTextIndex);
+			} else if (recipeName.contains("Organization")) {
+				feedbackText = feedbackMap.getAnnotationArray("organization").get(feedbackTextIndex);
+			} else { // quality of writing
+				feedbackText = feedbackMap.getAnnotationArray("quality of writing").get(feedbackTextIndex);
+			}
+			// logger.info(">>>>>> "+ feedbackMap.getAnnotationArray("content").get(Integer.parseInt(predictedLabel)-1));
+			results.put(newColumnName ,predictedLabel + " " + feedbackText);
+			forLogger += newColumnName + ":" + predictedLabel+ "; ";		
 		}
 		// logger.info(">>> jsonString: " + requestJson.get("jsonString").toString());
 		
 		
 		// logger.info(">>> predicted label is: " + predicted.get(0));
+		logger.info(">> user ["+ userName + "] ("+userID+") has tried the feedback System and got a the following result on "+ hwNumber + ": "+forLogger);
 		return results;
 	}
 
