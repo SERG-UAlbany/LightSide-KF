@@ -1,0 +1,1 @@
+Get-Process -Id (Get-NetTCPConnection -LocalPort 9098).OwningProcess | Stop-Process
